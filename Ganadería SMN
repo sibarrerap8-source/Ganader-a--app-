@@ -1,0 +1,209 @@
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+
+# Configuración de la página
+st.set_page_config(page_title="Gestión Ganadera", page_icon="🐮", layout="wide")
+
+# Archivos CSV para persistencia de datos
+FILES = {
+    "inventario": "inventario_ganado.csv",
+    "leche": "produccion_leche.csv",
+    "reproduccion": "reproduccion.csv",
+    "potreros": "potreros.csv",
+    "cuentas": "cuentas.csv"
+}
+
+def cargar_datos(nombre):
+    try:
+        return pd.read_csv(FILES[nombre])
+    except FileNotFoundError:
+        if nombre == "inventario":
+            return pd.DataFrame(columns=["ID / Chapeta", "Nombre", "Categoría", "Raza", "Fecha Nacimiento", "Peso (kg)", "Estado Reproductivo"])
+        elif nombre == "leche":
+            return pd.DataFrame(columns=["Fecha", "Lote / Vaca", "Litros Mañana", "Litros Tarde", "Total Litros", "Destino", "Precio Litro ($)"])
+        elif nombre == "reproduccion":
+            return pd.DataFrame(columns=["ID Vaca", "Fecha Servicio", "Toro / IA", "Fecha Diagnóstico", "Resultado", "Fecha Parto Estimada"])
+        elif nombre == "potreros":
+            return pd.DataFrame(columns=["Nº Potrero", "Tipo Pasto", "Área (ha)", "Fecha Entrada", "Fecha Salida", "Días Ocupación", "Días Descanso Estimados"])
+        elif nombre == "cuentas":
+            return pd.DataFrame(columns=["Fecha", "Tipo", "Categoría", "Descripción", "Valor ($)"])
+
+def guardar_datos(df, nombre):
+    df.to_csv(FILES[nombre], index=False)
+
+# Menú lateral
+st.sidebar.title("🐮 Gestión Ganadera")
+menu = st.sidebar.selectbox("Selecciona un Módulo", [
+    "Inventario Ganado", 
+    "Producción de Leche", 
+    "Reproducción y Preñeces", 
+    "Potreros y Pastos", 
+    "Cuentas (Ingresos/Gastos)"
+])
+
+# ---------------------------------------------------------
+# 1. INVENTARIO GANADO
+# ---------------------------------------------------------
+if menu == "Inventario Ganado":
+    st.title("📋 Inventario de Animales")
+    df = cargar_datos("inventario")
+    
+    with st.form("form_inventario", clear_on_submit=True):
+        st.subheader("Registrar Nuevo Animal")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            chapeta = st.text_input("ID / Chapeta")
+            nombre = st.text_input("Nombre (Opcional)")
+        with col2:
+            categoria = st.selectbox("Categoría", ["Vaca Ordeño", "Cría / Ternero", "Levante", "Ceba", "Toro / Reproductor"])
+            raza = st.text_input("Raza")
+        with col3:
+            f_nac = st.date_input("Fecha de Nacimiento", datetime.today())
+            peso = st.number_input("Peso Actual (kg)", min_value=0.0, format="%.2f")
+            estado = st.selectbox("Estado Reproductivo / Actual", ["Sano / Activo", "Preñada", "En Ordeño", "Seca", "Enfermo"])
+            
+        submitted = st.form_submit_button("Guardar Animal")
+        if submitted and chapeta:
+            nuevo = pd.DataFrame([[chapeta, nombre, categoria, raza, str(f_nac), peso, estado]], columns=df.columns)
+            df = pd.concat([df, nuevo], ignore_index=True)
+            guardar_datos(df, "inventario")
+            st.success("¡Animal registrado con éxito!")
+            
+    st.subheader("Listado de Animales")
+    st.dataframe(df, use_container_width=True)
+
+# ---------------------------------------------------------
+# 2. PRODUCCIÓN DE LECHE
+# ---------------------------------------------------------
+elif menu == "Producción de Leche":
+    st.title("🥛 Control Diario de Leche")
+    df = cargar_datos("leche")
+    
+    with st.form("form_leche", clear_on_submit=True):
+        st.subheader("Registrar Ordeño")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            fecha = st.date_input("Fecha", datetime.today())
+            lote = st.text_input("Lote o Número de Vaca")
+        with col2:
+            l_m = st.number_input("Litros Mañana", min_value=0.0, format="%.2f")
+            l_t = st.number_input("Litros Tarde", min_value=0.0, format="%.2f")
+        with col3:
+            destino = st.selectbox("Destino", ["Venta Comercial", "Consumo Finca", "Terneros"])
+            precio = st.number_input("Precio por Litro ($)", min_value=0.0, format="%.2f")
+            
+        submitted = st.form_submit_button("Guardar Ordeño")
+        if submitted:
+            total = l_m + l_t
+            nuevo = pd.DataFrame([[str(fecha), lote, l_m, l_t, total, destino, precio]], columns=df.columns)
+            df = pd.concat([df, nuevo], ignore_index=True)
+            guardar_datos(df, "leche")
+            st.success(f"¡Registro guardado! Total producido: {total} litros.")
+            
+    st.subheader("Historial de Producción")
+    st.dataframe(df, use_container_width=True)
+
+# ---------------------------------------------------------
+# 3. REPRODUCCIÓN Y PREÑECES
+# ---------------------------------------------------------
+elif menu == "Reproducción y Preñeces":
+    st.title("🤰 Reproducción y Control de Gestación")
+    df = cargar_datos("reproduccion")
+    
+    with st.form("form_reprod", clear_on_submit=True):
+        st.subheader("Registrar Servicio / Monta")
+        col1, col2 = st.columns(2)
+        with col1:
+            id_vaca = st.text_input("ID de la Vaca")
+            f_serv = st.date_input("Fecha de Servicio / IA", datetime.today())
+            toro = st.text_input("Toro o Código de Inseminación")
+        with col2:
+            f_diag = st.date_input("Fecha Estimada Diagnóstico", datetime.today())
+            resultado = st.selectbox("Resultado", ["Pendiente", "Preñada", "Vacía"])
+            f_parto = st.date_input("Fecha Probable de Parto", datetime.today())
+            
+        submitted = st.form_submit_button("Guardar Registro Reproductivo")
+        if submitted and id_vaca:
+            nuevo = pd.DataFrame([[id_vaca, str(f_serv), toro, str(f_diag), resultado, str(f_parto)]], columns=df.columns)
+            df = pd.concat([df, nuevo], ignore_index=True)
+            guardar_datos(df, "reproduccion")
+            st.success("¡Registro reproductivo guardado!")
+            
+    st.subheader("Seguimiento Reproductivo")
+    st.dataframe(df, use_container_width=True)
+
+# ---------------------------------------------------------
+# 4. POTREROS Y PASTOS (ROTACIÓN MEJORADA)
+# ---------------------------------------------------------
+elif menu == "Potreros y Pastos":
+    st.title("🌿 Rotación de Potreros y Praderas")
+    df = cargar_datos("potreros")
+    
+    with st.form("form_potreros", clear_on_submit=True):
+        st.subheader("Control de Ocupación y Descanso")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            n_potrero = st.text_input("Número o Nombre del Potrero")
+            t_pasto = st.text_input("Tipo de Pasto (Ej. Toledo, Brachiaria)")
+        with col2:
+            area = st.number_input("Área (Hectáreas)", min_value=0.0, format="%.2f")
+            f_ent = st.date_input("Fecha de Entrada del Ganado", datetime.today())
+        with col3:
+            f_sal = st.date_input("Fecha de Salida del Ganado", datetime.today())
+            dias_desc = st.number_input("Días de Descanso Planeados", min_value=0, value=30)
+            
+        submitted = st.form_submit_button("Guardar Rotación de Potrero")
+        if submitted and n_potrero:
+            # Calcular días de ocupación automáticamente basados en las fechas
+            dias_ocupacion = (f_sal - f_ent).days
+            if dias_ocupacion < 0:
+                dias_ocupacion = 0
+                
+            nuevo = pd.DataFrame([[n_potrero, t_pasto, area, str(f_ent), str(f_sal), dias_ocupacion, dias_desc]], columns=df.columns)
+            df = pd.concat([df, nuevo], ignore_index=True)
+            guardar_datos(df, "potreros")
+            st.success(f"¡Rotación guardada! El ganado ocupó el potrero por {dias_ocupacion} días.")
+            
+    st.subheader("Historial de Manejo de Praderas")
+    st.dataframe(df, use_container_width=True)
+
+# ---------------------------------------------------------
+# 5. CUENTAS (INGRESOS Y GASTOS)
+# ---------------------------------------------------------
+elif menu == "Cuentas (Ingresos/Gastos)":
+    st.title("💰 Finanzas del Emprendimiento")
+    df = cargar_datos("cuentas")
+    
+    with st.form("form_cuentas", clear_on_submit=True):
+        st.subheader("Registrar Movimiento Financiero")
+        col1, col2 = st.columns(2)
+        with col1:
+            fecha = st.date_input("Fecha", datetime.today())
+            tipo = st.selectbox("Tipo de Movimiento", ["Ingreso", "Gasto"])
+            categoria = st.selectbox("Categoría", ["Venta Leche", "Venta Animales", "Alimento / Suplementos", "Sanidad / Veterinario", "Mano de Obra", "Infraestructura / Cercas", "Otros"])
+        with col2:
+            desc = st.text_input("Descripción detallada")
+            valor = st.number_input("Valor ($)", min_value=0.0, format="%.2f")
+            
+        submitted = st.form_submit_button("Guardar Transacción")
+        if submitted:
+            nuevo = pd.DataFrame([[str(fecha), tipo, categoria, desc, valor]], columns=df.columns)
+            df = pd.concat([df, nuevo], ignore_index=True)
+            guardar_datos(df, "cuentas")
+            st.success("¡Transacción registrada exitosamente!")
+            
+    st.subheader("Historial Financiero")
+    st.dataframe(df, use_container_width=True)
+    
+    if not df.empty:
+        st.divider()
+        st.subheader("Resumen General")
+        ingresos = df[df["Tipo"] == "Ingreso"]["Valor ($)"].sum()
+        gastos = df[df["Tipo"] == "Gasto"]["Valor ($)"].sum()
+        balance = ingresos - gastos
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Ingresos", f"${ingresos:,.2f}")
+        c2.metric("Total Gastos", f"${gastos:,.2f}")
+        c3.metric("Balance Neto", f"${balance:,.2f}", delta=f"${balance:,.2f}")
